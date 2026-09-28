@@ -1,11 +1,158 @@
-<html>
-	<head>
-		<title>Your Gradesheet Generator</title>
-	</head>
-	<body>
-		<div style="text-align: center">
-			Click <a href="create.html">here</a> to prepare your Gradesheet <br/>
-			Click <a href="upload.html">here</a> to render your Gradesheet online <br/>
-		</div>
-	</body>
-</html>
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mini Puzzles</title>
+<style>
+:root{--bg:#f6f5f1;--fg:#1d1d1f;--mut:#6b6b70;--card:#fff;--line:#d8d6cf;--acc:#4f46e5;--acc2:#e0e7ff;--bad:#dc2626;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#15151a;--fg:#f2f2f5;--mut:#9a9aa3;--card:#22222a;--line:#3a3a45;--acc:#818cf8;--acc2:#312e6b;--bad:#f87171}}
+:root[data-theme="dark"]{--bg:#15151a;--fg:#f2f2f5;--mut:#9a9aa3;--card:#22222a;--line:#3a3a45;--acc:#818cf8;--acc2:#312e6b;--bad:#f87171}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-user-select:none;user-select:none}
+#app{max-width:480px;margin:0 auto;padding:16px}
+h1{font-size:28px;margin:24px 0 4px}p.sub{color:var(--mut);margin:0 0 20px}
+.card{display:flex;gap:14px;align-items:center;width:100%;padding:16px;margin-bottom:12px;background:var(--card);border:1px solid var(--line);border-radius:16px;font:inherit;color:inherit;text-align:left;cursor:pointer}
+.card:active{transform:scale(.98)}.card .i{font-size:32px}.card b{display:block;font-size:18px}.card span{color:var(--mut);font-size:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
+header .t{font-weight:700}
+button.b{font:inherit;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer}
+button.p{background:var(--acc);color:#fff;border-color:var(--acc)}
+#timer{font-variant-numeric:tabular-nums;font-weight:700;font-size:18px;min-width:64px;text-align:right}
+#timer.low{color:var(--bad)}
+#board{display:grid;width:100%;max-width:420px;aspect-ratio:1;margin:0 auto;touch-action:none;background:var(--card);border:2px solid var(--fg);border-radius:8px;overflow:hidden}
+.cell{display:flex;align-items:center;justify-content:center;border:1px solid var(--line);font-size:clamp(16px,6vw,26px);font-weight:700;position:relative}
+.dot{display:flex;align-items:center;justify-content:center;width:70%;height:70%;border-radius:50%;background:var(--fg);color:var(--bg);font-size:.8em}
+.cell.on{background:var(--acc2)}.cell.head{background:var(--acc)}
+.sd .cell{cursor:pointer}.sd .g{color:var(--fg)}.sd .u{color:var(--acc)}.sd .sel{background:var(--acc2)}.sd .same{background:color-mix(in srgb,var(--acc) 25%,transparent)}
+.sd .bad{background:var(--bad)}
+.pv{background:var(--acc2)}
+#extra{max-width:420px;margin:14px auto 0;text-align:center}
+#extra .pad{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:10px}
+#extra .pad button{width:44px;height:48px;font-size:20px}
+.hint{color:var(--mut);font-size:13px;margin:12px auto 0;max-width:420px;text-align:center}
+#modal{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;padding:20px}
+#modal[hidden],[hidden]{display:none!important}
+#modal div{background:var(--card);border-radius:18px;padding:24px;text-align:center;max-width:320px;width:100%}
+#modal h2{margin:0 0 6px}#modal p{color:var(--mut);margin:0 0 18px}#modal .row{display:flex;gap:10px;justify-content:center}
+</style></head><body>
+<div id="app">
+<section id="home"><h1>Mini Puzzles</h1><p class="sub">Pick a game. Beat the clock. Climb the levels.</p><div id="cards"></div></section>
+<section id="play" hidden>
+<header><button class="b" id="back">← Home</button><span class="t" id="ttl"></span><span id="timer"></span></header>
+<div id="board"></div><div id="extra"></div><p class="hint" id="hint"></p>
+</section></div>
+<div id="modal" hidden><div><h2 id="mh"></h2><p id="mp"></p><div class="row" id="mb"></div></div></div>
+<script>
+const $=s=>document.querySelector(s),R=n=>Math.floor(Math.random()*n);
+const shuf=a=>{for(let i=a.length-1;i>0;i--){const j=R(i+1);[a[i],a[j]]=[a[j],a[i]]}return a};
+const mk=(t,c,h)=>{const d=document.createElement(t);if(c)d.className=c;if(h!=null)d.innerHTML=h;return d};
+let G=null;
+const games={
+zip:{name:'Zip',icon:'🧵',desc:'Connect 1 → N and fill every cell',hint:'Drag from 1 through the numbers in order, covering every cell. Drag back over your path to undo.',
+ base:P=>30+P.n*P.n*4,
+ gen(l){const n=8,N=n*n;let p=[];
+  for(let r=0;r<n;r++)for(let c=0;c<n;c++)p.push(r%2?r*n+n-1-c:r*n+c);
+  for(let k=0;k<N*8;k++){if(R(2))p.reverse();const h=p[N-1],r=h/n|0,c=h%n,nb=[];
+   [[1,0],[-1,0],[0,1],[0,-1]].forEach(([a,b])=>{const y=r+a,x=c+b;if(y>=0&&y<n&&x>=0&&x<n&&y*n+x!==p[N-2])nb.push(y*n+x)});
+   const i=p.indexOf(nb[R(nb.length)]);p=p.slice(0,i+1).concat(p.slice(i+1).reverse())}
+  const cnt=15+R(6),nums={};
+  for(let k=0;k<cnt;k++)nums[p[Math.round(k*(N-1)/(cnt-1))]]=k+1;
+  return{n,nums,max:cnt}},
+ mount(P,box,ex,end){const n=P.n;let path=[],drag=0;box.style.gridTemplateColumns=`repeat(${n},1fr)`;
+  const cells=[];for(let i=0;i<n*n;i++){const d=mk('div','cell',P.nums[i]?'<b class="dot">'+P.nums[i]+'</b>':'');box.append(d);cells.push(d)}
+  const draw=()=>cells.forEach((d,i)=>{const k=path.indexOf(i);d.classList.toggle('on',k>=0);d.classList.toggle('head',k>=0&&k==path.length-1)});
+  const adj=(a,b)=>Math.abs((a/n|0)-(b/n|0))+Math.abs(a%n-b%n)===1;
+  const at=e=>{const r=box.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+   return x<0||y<0||x>=1||y>=1?-1:(y*n|0)*n+(x*n|0)};
+  const step=i=>{if(i<0)return;
+   if(!path.length){if(P.nums[i]===1)path=[i];else return}
+   else{const L=path[path.length-1];if(i===L)return;const k=path.indexOf(i);
+    if(k>=0)path.length=k+1;
+    else if(adj(L,i)){const m=P.nums[i],nx=path.filter(c=>P.nums[c]).length+1;
+     if(m&&(m!==nx||(m===P.max&&path.length!==n*n-1)))return;path.push(i)}else return}
+   draw();if(path.length===n*n&&P.nums[path[n*n-1]]===P.max)end(true)};
+  box.onpointerdown=e=>{drag=1;box.setPointerCapture(e.pointerId);step(at(e))};
+  box.onpointermove=e=>{if(drag)step(at(e))};box.onpointerup=box.onpointercancel=()=>drag=0;
+  const c=mk('button','b','Clear');c.onclick=()=>{path=[];draw()};ex.append(c)}},
+
+sudoku:{name:'Sudoku',icon:'🔢',desc:'Fill the grid, 3 mistakes allowed',hint:'Tap a cell, then a number. Each row, column and box needs every number once.',
+ base:P=>P.n==9?540:200,
+ gen(l){const big=l>2,n=big?9:6,bh=big?3:2,bw=3;
+  const ok=(g,i,v)=>{const r=i/n|0,c=i%n;for(let k=0;k<n;k++)if(g[r*n+k]===v||g[k*n+c]===v)return 0;
+   const r0=r-r%bh,c0=c-c%bw;for(let a=0;a<bh;a++)for(let b=0;b<bw;b++)if(g[(r0+a)*n+c0+b]===v)return 0;return 1};
+  const cand=g=>{let bi=-1,bc=null;for(let i=0;i<n*n;i++)if(!g[i]){const c=[];for(let v=1;v<=n;v++)if(ok(g,i,v))c.push(v);
+   if(!bc||c.length<bc.length){bi=i;bc=c;if(c.length<2)break}}return[bi,bc]};
+  const fill=g=>{const[i,c]=cand(g);if(i<0)return true;for(const v of shuf(c)){g[i]=v;if(fill(g))return true}g[i]=0;return false};
+  const count=(g,lim)=>{const[i,c]=cand(g);if(i<0)return 1;let t=0;for(const v of c){g[i]=v;t+=count(g,lim-t);if(t>=lim)break}g[i]=0;return t};
+  const sol=Array(n*n).fill(0);fill(sol);const pg=sol.slice();
+  const target=big?Math.min(40+3*(l-3),58):16+2*l;let rem=0;
+  for(const i of shuf([...Array(n*n).keys()])){if(rem>=target)break;const v=pg[i];pg[i]=0;
+   if(count(pg.slice(),2)!==1)pg[i]=v;else rem++}
+  return{n,bh,bw,pg,sol}},
+ mount(P,box,ex,end){const{n,bh,bw}=P;box.className='sd';box.id='board';box.style.gridTemplateColumns=`repeat(${n},1fr)`;
+  const g=P.pg.slice();let sel=-1,miss=0;const cells=[];
+  for(let i=0;i<n*n;i++){const d=mk('div','cell');const r=i/n|0,c=i%n;
+   if(c%bw==bw-1&&c<n-1)d.style.borderRight='2px solid var(--fg)';if(r%bh==bh-1&&r<n-1)d.style.borderBottom='2px solid var(--fg)';
+   d.onclick=()=>{sel=i;draw()};box.append(d);cells.push(d)}
+  const info=mk('div','',''),pad=mk('div','pad');ex.append(info,pad);
+  const draw=()=>{cells.forEach((d,i)=>{d.textContent=g[i]||'';d.className='cell '+(P.pg[i]?'g':'u')+(i===sel?' sel':'')+(sel>=0&&g[sel]&&g[i]===g[sel]&&i!==sel?' same':'')});
+   info.textContent='Mistakes: '+miss+' / 3'};
+  const put=v=>{if(sel<0||g[sel])return;
+   if(v===P.sol[sel]){g[sel]=v;draw();if(g.every(Boolean))end(true)}
+   else{miss++;draw();const d=cells[sel];d.classList.add('bad');setTimeout(()=>d.classList.remove('bad'),350);if(miss>=3)end(false,'3 mistakes made.')}};
+  for(let v=1;v<=n;v++){const b=mk('button','b',v);b.onclick=()=>put(v);pad.append(b)}
+  G.key=e=>{const v=+e.key;if(v>=1&&v<=n)put(v)};draw()}},
+
+patches:{name:'Patches',icon:'🟪',desc:'Split the grid into rectangles',hint:'Drag to draw rectangles. Each must hold exactly one number equal to its area. Tap a rectangle to remove it.',
+ base:P=>30+P.n*P.n*5,
+ gen(l){const n=8,T=15+R(6);let rs=[{r:0,c:0,h:n,w:n}];
+  while(rs.length<T){const cd=rs.filter(x=>x.h*x.w>1);if(!cd.length)break;
+   let x=cd[R(cd.length)],y=cd[R(cd.length)];if(y.h*y.w>x.h*x.w)x=y;rs.splice(rs.indexOf(x),1);
+   if(x.w>1&&(x.h==1||R(2))){const k=1+R(x.w-1);rs.push({...x,w:k},{...x,c:x.c+k,w:x.w-k})}
+   else{const k=1+R(x.h-1);rs.push({...x,h:k},{...x,r:x.r+k,h:x.h-k})}}
+  const nums={};rs.forEach(x=>nums[(x.r+R(x.h))*n+x.c+R(x.w)]=x.h*x.w);return{n,nums}},
+ mount(P,box,ex,end){const n=P.n;box.style.gridTemplateColumns=`repeat(${n},1fr)`;let rects=[],s=-1,e2=-1,drag=0;
+  const cells=[];for(let i=0;i<n*n;i++){const d=mk('div','cell',P.nums[i]||'');box.append(d);cells.push(d)}
+  const bb=(a,b)=>({r1:Math.min(a/n|0,b/n|0),r2:Math.max(a/n|0,b/n|0),c1:Math.min(a%n,b%n),c2:Math.max(a%n,b%n)});
+  const inn=(q,i)=>{const r=i/n|0,c=i%n;return r>=q.r1&&r<=q.r2&&c>=q.c1&&c<=q.c2};
+  const draw=()=>{const pv=drag?bb(s,e2):null;cells.forEach((d,i)=>{const k=rects.findIndex(q=>inn(q,i));let sh='',bg='';
+   if(k>=0){const q=rects[k],col=`hsl(${k*47%360} 65% 55%)`,r=i/n|0,c=i%n;bg=`hsl(${k*47%360} 65% 55% / .3)`;
+    if(r==q.r1)sh+=`inset 0 3px 0 ${col},`;if(r==q.r2)sh+=`inset 0 -3px 0 ${col},`;if(c==q.c1)sh+=`inset 3px 0 0 ${col},`;if(c==q.c2)sh+=`inset -3px 0 0 ${col},`}
+   d.style.boxShadow=sh.slice(0,-1);d.style.background=bg;d.classList.toggle('pv',!!pv&&inn(pv,i))})};
+  const at=e=>{const r=box.getBoundingClientRect(),x=(e.clientX-r.left)/r.width,y=(e.clientY-r.top)/r.height;
+   return Math.min(n-1,Math.max(0,y*n|0))*n+Math.min(n-1,Math.max(0,x*n|0))};
+  const check=()=>{let cov=0;for(const q of rects){let ns=[],a=(q.r2-q.r1+1)*(q.c2-q.c1+1);cov+=a;
+   for(let i=0;i<n*n;i++)if(P.nums[i]&&inn(q,i))ns.push(P.nums[i]);if(ns.length!==1||ns[0]!==a)return}
+   if(cov===n*n)end(true)};
+  box.onpointerdown=e=>{box.setPointerCapture(e.pointerId);drag=1;s=e2=at(e);draw()};
+  box.onpointermove=e=>{if(drag){e2=at(e);draw()}};
+  box.onpointercancel=()=>{drag=0;draw()};
+  box.onpointerup=()=>{if(!drag)return;drag=0;
+   if(s===e2){const k=rects.findIndex(q=>inn(q,s));if(k>=0)rects.splice(k,1);else rects.push(bb(s,s))}
+   else{const q=bb(s,e2);rects=rects.filter(o=>!(o.r1<=q.r2&&o.r2>=q.r1&&o.c1<=q.c2&&o.c2>=q.c1));rects.push(q)}
+   if(s===e2&&rects.some(q=>inn(q,s)&&(q.r1===q.r2&&q.c1===q.c2))&&false){}
+   draw();check()};
+  const c=mk('button','b','Clear');c.onclick=()=>{rects=[];draw()};ex.append(c)}}
+};
+const cards=$('#cards');
+for(const k in games){const g=games[k],b=mk('button','card',`<span class="i">${g.icon}</span><div><b>${g.name}</b><span>${g.desc}</span></div>`);b.onclick=()=>start(k,1);cards.append(b)}
+const fmt=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
+const tick=()=>{$('#timer').textContent=fmt(Math.max(0,G.left));$('#timer').classList.toggle('low',!G.up&&G.left<=10)};
+function start(g,l,puz){stop();$('#modal').hidden=true;$('#home').hidden=true;$('#play').hidden=false;
+ const gm=games[g];G={g,l,puz:puz||gm.gen(l),done:false};
+ $('#ttl').textContent=gm.name+' · Level '+l;$('#hint').textContent=gm.hint;
+ const box=$('#board');box.className='';box.innerHTML='';box.onpointerdown=box.onpointermove=box.onpointerup=null;$('#extra').innerHTML='';
+ G.up=g!=='sudoku';G.total=Math.round(gm.base(G.puz)*Math.max(.6,1-.03*(l-1)));G.left=G.up?0:G.total;tick();
+ gm.mount(G.puz,box,$('#extra'),end);
+ G.iv=setInterval(()=>{if(G.up){G.left++;tick()}else{G.left--;tick();if(G.left<=0)end(false,"Time's up!")}},1000)}
+function stop(){if(G){clearInterval(G.iv);G.key=null}}
+function end(ok,msg){if(G.done)return;G.done=true;clearInterval(G.iv);
+ $('#mh').textContent=ok?'🎉 Solved!':'😕 Failed';
+ $('#mp').textContent=ok?'You solved it in '+fmt(G.up?G.left:G.total-G.left)+'.':msg;
+ const mb=$('#mb');mb.innerHTML='';const{g,l,puz}=G;
+ const h=mk('button','b','Home');h.onclick=home;
+ const m=mk('button','b p',ok?'Next level →':'Retry');m.onclick=()=>start(g,ok?l+1:l,ok?null:puz);
+ mb.append(h,m);$('#modal').hidden=false}
+function home(){stop();G=null;$('#modal').hidden=true;$('#play').hidden=true;$('#home').hidden=false}
+$('#back').onclick=home;
+document.addEventListener('keydown',e=>{if(G&&G.key&&!G.done)G.key(e)});
+</script></body></html>
